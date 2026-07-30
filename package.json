@@ -1,0 +1,47 @@
+{
+  "name": "pi-local-memfs",
+  "version": "0.1.0",
+  "description": "A TypeScript port of Letta MemFS for Pi agents",
+  "type": "module",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pi-package",
+    "memory",
+    "memfs"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "proper-lockfile": "4.1.2",
+    "yaml": "2.9.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.83.0 <0.84.0",
+    "typebox": ">=1.3.7 <2.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.83.0",
+    "@types/node": "^24.10.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "typescript": "^5.9.3",
+    "typebox": "1.3.7",
+    "vitest": "^4.1.9"
+  }
+}
