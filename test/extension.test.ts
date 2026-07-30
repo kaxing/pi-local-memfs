@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("extension lifecycle", () => {
-  it("starts off, toggles tools and projection, and resets on a new session", async () => {
+  it("starts off once, then persists toggle state and the selected agent across sessions", async () => {
     process.env.PI_LOCAL_MEMFS_HOME = await mkdtemp(resolve(tmpdir(), "pi-local-memfs-extension-"));
     const commands = new Map<string, any>();
     const events = new Map<string, any>();
@@ -66,7 +66,18 @@ describe("extension lifecycle", () => {
     expect(notices.at(-1)).toMatch(/agent 'work' active/);
 
     await events.get("session_start")({}, {});
+    expect(active).toEqual(expect.arrayContaining([...MEMFS_TOOL_NAMES]));
+    const restoredPrompt = await events.get("before_agent_start")(
+      { systemPrompt: "base" },
+      { signal: undefined },
+    );
+    expect(restoredPrompt.systemPrompt).toContain("Agent profile: work");
+
+    await commands.get("toggle-local-memfs").handler("off", commandContext);
+    await events.get("session_start")({}, {});
     expect(active).toEqual(["read", "bash"]);
     expect(await events.get("before_agent_start")({ systemPrompt: "base" }, { signal: undefined })).toBeUndefined();
+    await commands.get("toggle-local-memfs").handler("status", commandContext);
+    expect(notices.at(-1)).toContain("agent=work");
   });
 });

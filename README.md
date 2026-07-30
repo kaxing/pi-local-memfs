@@ -12,7 +12,7 @@ pi install git:github.com/kaxing/pi-local-memfs
 
 ## Use
 
-The memory layer starts off in every Pi session.
+The memory layer starts off on first use. Its on/off state and selected agent persist across Pi sessions, including `--no-session` runs.
 
 ```text
 /toggle-local-memfs on
@@ -21,10 +21,11 @@ The memory layer starts off in every Pi session.
 /toggle-local-memfs agent <name>
 ```
 
-Agent profiles are stored separately:
+Agent profiles and extension state are stored locally:
 
 ```text
 ~/.pi/agent/local-memfs/agents/<name>
+~/.pi/agent/local-memfs/state.json
 ```
 
 Each profile includes a minimal `system/persona.md`. Memory changes are committed to Git and persist across Pi sessions.

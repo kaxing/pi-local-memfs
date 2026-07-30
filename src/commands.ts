@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { resolveConfig, validateAgentName } from "./config.js";
 import { GitMemoryStore } from "./git-store.js";
 import type { RuntimeState } from "./runtime.js";
+import { savePersistedState } from "./state.js";
 import { MEMFS_TOOL_NAMES } from "./tools.js";
 
 function report(ctx: ExtensionCommandContext, message: string, level: "info" | "warning" | "error" = "info"): void {
@@ -22,6 +23,7 @@ function createStore(agent: string): GitMemoryStore {
 async function enable(pi: ExtensionAPI, state: RuntimeState): Promise<string> {
   const store = createStore(state.agent);
   const revision = await store.initialize();
+  await savePersistedState({ enabled: true, agent: state.agent });
   state.config = store.config;
   state.store = store;
   state.enabled = true;
@@ -29,7 +31,8 @@ async function enable(pi: ExtensionAPI, state: RuntimeState): Promise<string> {
   return revision;
 }
 
-function disable(pi: ExtensionAPI, state: RuntimeState): void {
+async function disable(pi: ExtensionAPI, state: RuntimeState): Promise<void> {
+  await savePersistedState({ enabled: false, agent: state.agent });
   state.enabled = false;
   state.config = undefined;
   state.store = undefined;
@@ -50,11 +53,13 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
           if (state.enabled) {
             const store = createStore(name);
             const revision = await store.initialize();
+            await savePersistedState({ enabled: true, agent: name });
             state.agent = name;
             state.config = store.config;
             state.store = store;
             report(ctx, `local-memfs agent '${name}' active at ${revision.slice(0, 8)}`);
           } else {
+            await savePersistedState({ enabled: false, agent: name });
             state.agent = name;
             report(ctx, `local-memfs agent set to '${name}' (layer remains off)`);
           }
@@ -73,7 +78,7 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
         }
 
         if (action === "off" || (action === "toggle" && state.enabled)) {
-          disable(pi, state);
+          await disable(pi, state);
           report(ctx, `local-memfs off; agent '${state.agent}' data and history preserved`);
           return;
         }

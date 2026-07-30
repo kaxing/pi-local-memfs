@@ -30,9 +30,13 @@ function expandHome(value: string): string {
   return resolve(value);
 }
 
+export function resolveMemfsHome(env: NodeJS.ProcessEnv = process.env): string {
+  return expandHome(env.PI_LOCAL_MEMFS_HOME?.trim() || "~/.pi/agent/local-memfs");
+}
+
 export function resolveConfig(agent: string, env: NodeJS.ProcessEnv = process.env): MemfsConfig {
   const safeAgent = validateAgentName(agent);
-  const home = expandHome(env.PI_LOCAL_MEMFS_HOME?.trim() || "~/.pi/agent/local-memfs");
+  const home = resolveMemfsHome(env);
   return Object.freeze({
     agent: safeAgent,
     home,
