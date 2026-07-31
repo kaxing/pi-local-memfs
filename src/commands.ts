@@ -23,7 +23,7 @@ function createStore(agent: string): GitMemoryStore {
   return new GitMemoryStore(resolveConfig(agent));
 }
 
-const CENTERING_PROMPT = `The user invoked /local-memfs-centering and explicitly requests a synchronous memory maintenance pass.
+const CENTERING_PROMPT = `The user invoked /local-memfs centering and explicitly requests a synchronous memory maintenance pass.
 
 Review only the recent conversation visible in your current context and the active committed local MemFS profile. Do not claim access to conversations that are not present.
 
@@ -58,16 +58,16 @@ async function disable(pi: ExtensionAPI, state: RuntimeState): Promise<void> {
 }
 
 export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): void {
-  pi.registerCommand("local-memfs-toggle", {
-    description: "Toggle local-memfs or list/select an agent profile: [on|off|agent [name]]",
+  pi.registerCommand("local-memfs", {
+    description: "Manage local-memfs: [on|off|agent [name]|centering]",
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
-      const action = parts[0] ?? "toggle";
+      const action = parts[0] ?? "status";
       try {
         if (action === "agent") {
           const name = parts[1];
           if (!name) {
-            if (parts.length !== 1) throw new Error("Usage: /local-memfs-toggle agent [name]");
+            if (parts.length !== 1) throw new Error("Usage: /local-memfs agent [name]");
             let entries: Dirent[];
             try {
               entries = await readdir(resolve(resolveMemfsHome(), "agents"), { withFileTypes: true });
@@ -95,7 +95,7 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
             );
             return;
           }
-          if (parts.length !== 2) throw new Error("Usage: /local-memfs-toggle agent [name]");
+          if (parts.length !== 2) throw new Error("Usage: /local-memfs agent [name]");
           validateAgentName(name);
           if (state.enabled) {
             const store = createStore(name);
@@ -113,52 +113,37 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
           return;
         }
 
-        if (action === "off" || (action === "toggle" && state.enabled)) {
-          await disable(pi, state);
-          report(ctx, `local-memfs off; agent '${state.agent}' data and history preserved`);
-          return;
-        }
-        if (action === "on" || (action === "toggle" && !state.enabled)) {
+        if (action === "on" && parts.length === 1) {
           const revision = await enable(pi, state);
           report(ctx, `local-memfs on; agent='${state.agent}'; revision=${revision.slice(0, 8)}`);
           return;
         }
-        throw new Error("Usage: /local-memfs-toggle [on|off|agent [name]]");
+        if (action === "off" && parts.length === 1) {
+          await disable(pi, state);
+          report(ctx, `local-memfs off; agent '${state.agent}' data and history preserved`);
+          return;
+        }
+        if (action === "status" && parts.length === 0) {
+          const status = await (state.store ?? createStore(state.agent)).status();
+          report(
+            ctx,
+            `agent=${state.agent}\nenabled=${state.enabled}\nroot=${status.root}\nrevision=${status.revision ?? "uninitialized"}\ndirty=${status.dirty}`,
+            status.dirty ? "warning" : "info",
+          );
+          return;
+        }
+        if (action === "centering" && parts.length === 1) {
+          if (!state.enabled) {
+            report(ctx, "local-memfs is disabled; run /local-memfs on first", "warning");
+            return;
+          }
+          pi.sendUserMessage(CENTERING_PROMPT);
+          return;
+        }
+        throw new Error("Usage: /local-memfs [on|off|agent [name]|centering]");
       } catch (error) {
         report(ctx, (error as Error).message, "error");
       }
     },
   });
-
-  pi.registerCommand("local-memfs-centering", {
-    description: "Synchronously reflect on recent context and maintain the active local-memfs profile",
-    handler: async (args, ctx) => {
-      if (args.trim()) {
-        report(ctx, "Usage: /local-memfs-centering", "error");
-        return;
-      }
-      if (!state.enabled) {
-        report(ctx, "local-memfs is disabled; run /local-memfs-toggle on first", "warning");
-        return;
-      }
-      pi.sendUserMessage(CENTERING_PROMPT);
-    },
-  });
-
-  pi.registerCommand("local-memfs-status", {
-    description: "Show selected local-memfs agent status",
-    handler: async (_args, ctx) => {
-      try {
-        const status = await (state.store ?? createStore(state.agent)).status();
-        report(
-          ctx,
-          `agent=${state.agent}\nenabled=${state.enabled}\nroot=${status.root}\nrevision=${status.revision ?? "uninitialized"}\ndirty=${status.dirty}`,
-          status.dirty ? "warning" : "info",
-        );
-      } catch (error) {
-        report(ctx, (error as Error).message, "error");
-      }
-    },
-  });
-
 }

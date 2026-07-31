@@ -37,11 +37,7 @@ describe("extension lifecycle", () => {
     } as unknown as ExtensionAPI;
 
     extension(pi);
-    expect([...commands.keys()]).toEqual([
-      "local-memfs-toggle",
-      "local-memfs-centering",
-      "local-memfs-status",
-    ]);
+    expect([...commands.keys()]).toEqual(["local-memfs"]);
     await events.get("session_start")({}, {});
     expect(active).toEqual(["read", "bash"]);
 
@@ -50,11 +46,11 @@ describe("extension lifecycle", () => {
       hasUI: true,
       ui: { notify(message: string) { notices.push(message); } },
     };
-    await commands.get("local-memfs-toggle").handler("on", commandContext);
+    await commands.get("local-memfs").handler("on", commandContext);
     expect(active).toEqual(expect.arrayContaining([...MEMFS_TOOL_NAMES]));
     expect(notices.at(-1)).toMatch(/local-memfs on/);
 
-    await commands.get("local-memfs-toggle").handler("agent", commandContext);
+    await commands.get("local-memfs").handler("agent", commandContext);
     expect(notices.at(-1)).toContain("* default");
 
     const prompt = await events.get("before_agent_start")(
@@ -64,7 +60,7 @@ describe("extension lifecycle", () => {
     expect(prompt.systemPrompt).toContain("<local-memfs>");
     expect(prompt.systemPrompt).toContain("Agent profile: default");
 
-    await commands.get("local-memfs-toggle").handler("agent work", commandContext);
+    await commands.get("local-memfs").handler("agent work", commandContext);
     expect(active).toEqual(expect.arrayContaining([...MEMFS_TOOL_NAMES]));
     const switchedPrompt = await events.get("before_agent_start")(
       { systemPrompt: "base" },
@@ -81,11 +77,11 @@ describe("extension lifecycle", () => {
     );
     expect(restoredPrompt.systemPrompt).toContain("Agent profile: work");
 
-    await commands.get("local-memfs-toggle").handler("off", commandContext);
+    await commands.get("local-memfs").handler("off", commandContext);
     await events.get("session_start")({}, {});
     expect(active).toEqual(["read", "bash"]);
     expect(await events.get("before_agent_start")({ systemPrompt: "base" }, { signal: undefined })).toBeUndefined();
-    await commands.get("local-memfs-status").handler("", commandContext);
+    await commands.get("local-memfs").handler("", commandContext);
     expect(notices.at(-1)).toContain("agent=work");
   });
 });

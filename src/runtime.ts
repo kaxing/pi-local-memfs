@@ -10,7 +10,7 @@ export interface RuntimeState {
 
 export function requireEnabledStore(state: RuntimeState): GitMemoryStore {
   if (!state.enabled || !state.store) {
-    throw new Error("local-memfs is disabled; run /local-memfs-toggle on");
+    throw new Error("local-memfs is disabled; run /local-memfs on");
   }
   return state.store;
 }

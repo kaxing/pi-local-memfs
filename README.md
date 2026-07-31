@@ -15,12 +15,12 @@ pi install git:github.com/kaxing/pi-local-memfs
 The memory layer starts off on first use. Its on/off state and selected agent persist across Pi sessions, including `--no-session` runs.
 
 ```text
-/local-memfs-toggle on
-/local-memfs-toggle off
-/local-memfs-toggle agent
-/local-memfs-toggle agent <name>
-/local-memfs-status
-/local-memfs-centering
+/local-memfs
+/local-memfs on
+/local-memfs off
+/local-memfs agent
+/local-memfs agent <name>
+/local-memfs centering
 ```
 
 Agent profiles and extension state are stored locally:
