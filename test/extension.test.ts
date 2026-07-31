@@ -38,6 +38,12 @@ describe("extension lifecycle", () => {
 
     extension(pi);
     expect([...commands.keys()]).toEqual(["local-memfs"]);
+    expect(commands.get("local-memfs").getArgumentCompletions("")).toEqual([
+      { value: "on", label: "on" },
+      { value: "off", label: "off" },
+      { value: "agent", label: "agent" },
+      { value: "centering", label: "centering" },
+    ]);
     await events.get("session_start")({}, {});
     expect(active).toEqual(["read", "bash"]);
 
@@ -49,6 +55,10 @@ describe("extension lifecycle", () => {
     await commands.get("local-memfs").handler("on", commandContext);
     expect(active).toEqual(expect.arrayContaining([...MEMFS_TOOL_NAMES]));
     expect(notices.at(-1)).toMatch(/local-memfs on/);
+    expect(commands.get("local-memfs").getArgumentCompletions("agent ")).toContainEqual({
+      value: "agent default",
+      label: "default (selected)",
+    });
 
     await commands.get("local-memfs").handler("agent", commandContext);
     expect(notices.at(-1)).toContain("* default");

@@ -1,4 +1,4 @@
-import type { Dirent } from "node:fs";
+import { type Dirent, readdirSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -21,6 +21,21 @@ export function setMemfsToolsActive(pi: ExtensionAPI, enabled: boolean): void {
 
 function createStore(agent: string): GitMemoryStore {
   return new GitMemoryStore(resolveConfig(agent));
+}
+
+function agentNames(entries: Dirent[]): string[] {
+  return entries
+    .filter((entry) => {
+      if (!entry.isDirectory()) return false;
+      try {
+        validateAgentName(entry.name);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .map((entry) => entry.name)
+    .sort();
 }
 
 const CENTERING_PROMPT = `The user invoked /local-memfs centering and explicitly requests a synchronous memory maintenance pass.
@@ -60,6 +75,27 @@ async function disable(pi: ExtensionAPI, state: RuntimeState): Promise<void> {
 export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): void {
   pi.registerCommand("local-memfs", {
     description: "Manage local-memfs: [on|off|agent [name]|centering]",
+    getArgumentCompletions: (prefix) => {
+      const agentMatch = /^agent\s+(.*)$/.exec(prefix);
+      if (agentMatch) {
+        let agents: string[];
+        try {
+          agents = agentNames(readdirSync(resolve(resolveMemfsHome(), "agents"), { withFileTypes: true }));
+        } catch {
+          return null;
+        }
+        const namePrefix = agentMatch[1]!;
+        const matches = agents
+          .filter((name) => name.startsWith(namePrefix))
+          .map((name) => ({ value: `agent ${name}`, label: name === state.agent ? `${name} (selected)` : name }));
+        return matches.length > 0 ? matches : null;
+      }
+
+      const options = ["on", "off", "agent", "centering"]
+        .filter((value) => value.startsWith(prefix))
+        .map((value) => ({ value, label: value }));
+      return options.length > 0 ? options : null;
+    },
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
       const action = parts[0] ?? "status";
@@ -75,18 +111,7 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
               if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
               entries = [];
             }
-            const agents = entries
-              .filter((entry) => {
-                if (!entry.isDirectory()) return false;
-                try {
-                  validateAgentName(entry.name);
-                  return true;
-                } catch {
-                  return false;
-                }
-              })
-              .map((entry) => entry.name)
-              .sort();
+            const agents = agentNames(entries);
             report(
               ctx,
               agents.length > 0
