@@ -461,7 +461,7 @@ export class GitMemoryStore {
         throw new Error(`Stale memory revision: expected ${expectedRevision}, current HEAD is ${priorRevision}`);
       }
       const status = await this.git(["status", "--porcelain=v1", "--untracked-files=all"], { signal });
-      if (status) throw new Error("Memory repository has uncommitted changes; inspect them and run /memfs-commit first");
+      if (status) throw new Error("Memory repository has uncommitted changes; commit or discard them before retrying");
 
       let applied = false;
       try {

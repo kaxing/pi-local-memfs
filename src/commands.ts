@@ -1,5 +1,8 @@
+import type { Dirent } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { resolveConfig, validateAgentName } from "./config.js";
+import { resolveConfig, resolveMemfsHome, validateAgentName } from "./config.js";
 import { GitMemoryStore } from "./git-store.js";
 import type { RuntimeState } from "./runtime.js";
 import { savePersistedState } from "./state.js";
@@ -19,6 +22,21 @@ export function setMemfsToolsActive(pi: ExtensionAPI, enabled: boolean): void {
 function createStore(agent: string): GitMemoryStore {
   return new GitMemoryStore(resolveConfig(agent));
 }
+
+const CENTERING_PROMPT = `The user invoked /local-memfs-centering and explicitly requests a synchronous memory maintenance pass.
+
+Review only the recent conversation visible in your current context and the active committed local MemFS profile. Do not claim access to conversations that are not present.
+
+Proceed conservatively:
+1. Inspect existing memory before changing it. Read only files relevant to candidate updates.
+2. Prioritize user corrections, explicitly durable preferences, stable decisions or facts, and contradictions with existing memory.
+3. Skip one-off task details, temporary state, information already captured, unsupported inferences, secrets, credentials, PII, and host-specific details.
+4. Audit relevant memory for duplication, stale contradictions, inaccurate descriptions, poor system-versus-external placement, and unnecessary system-prompt bloat.
+5. Preserve persona and behavioral identity. Make surgical changes rather than rewriting files wholesale.
+6. Use only the local MemFS tools for memory mutations. Each mutation must use the latest revision returned by the preceding operation.
+7. Making no changes is valid when nothing clearly durable or structurally useful needs attention.
+
+Finish with a concise report of what you reviewed, files changed, skipped candidates, and resulting revisions.`;
 
 async function enable(pi: ExtensionAPI, state: RuntimeState): Promise<string> {
   const store = createStore(state.agent);
@@ -40,15 +58,44 @@ async function disable(pi: ExtensionAPI, state: RuntimeState): Promise<void> {
 }
 
 export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): void {
-  pi.registerCommand("toggle-local-memfs", {
-    description: "Toggle local-memfs or select an agent profile: [on|off|status|agent <name>]",
+  pi.registerCommand("local-memfs-toggle", {
+    description: "Toggle local-memfs or list/select an agent profile: [on|off|agent [name]]",
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
       const action = parts[0] ?? "toggle";
       try {
         if (action === "agent") {
           const name = parts[1];
-          if (!name || parts.length !== 2) throw new Error("Usage: /toggle-local-memfs agent <name>");
+          if (!name) {
+            if (parts.length !== 1) throw new Error("Usage: /local-memfs-toggle agent [name]");
+            let entries: Dirent[];
+            try {
+              entries = await readdir(resolve(resolveMemfsHome(), "agents"), { withFileTypes: true });
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+              entries = [];
+            }
+            const agents = entries
+              .filter((entry) => {
+                if (!entry.isDirectory()) return false;
+                try {
+                  validateAgentName(entry.name);
+                  return true;
+                } catch {
+                  return false;
+                }
+              })
+              .map((entry) => entry.name)
+              .sort();
+            report(
+              ctx,
+              agents.length > 0
+                ? `local-memfs agents (selected=${state.agent}):\n${agents.map((agent) => `${agent === state.agent ? "*" : " "} ${agent}`).join("\n")}`
+                : `No initialized local-memfs agents (selected=${state.agent})`,
+            );
+            return;
+          }
+          if (parts.length !== 2) throw new Error("Usage: /local-memfs-toggle agent [name]");
           validateAgentName(name);
           if (state.enabled) {
             const store = createStore(name);
@@ -66,17 +113,6 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
           return;
         }
 
-        if (action === "status") {
-          const store = state.store ?? createStore(state.agent);
-          const status = await store.status();
-          report(
-            ctx,
-            `local-memfs ${state.enabled ? "on" : "off"}; agent=${state.agent}; revision=${status.revision?.slice(0, 8) ?? "uninitialized"}; dirty=${status.dirty}; root=${status.root}`,
-            status.dirty ? "warning" : "info",
-          );
-          return;
-        }
-
         if (action === "off" || (action === "toggle" && state.enabled)) {
           await disable(pi, state);
           report(ctx, `local-memfs off; agent '${state.agent}' data and history preserved`);
@@ -87,27 +123,29 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
           report(ctx, `local-memfs on; agent='${state.agent}'; revision=${revision.slice(0, 8)}`);
           return;
         }
-        throw new Error("Usage: /toggle-local-memfs [on|off|status|agent <name>]");
+        throw new Error("Usage: /local-memfs-toggle [on|off|agent [name]]");
       } catch (error) {
         report(ctx, (error as Error).message, "error");
       }
     },
   });
 
-  pi.registerCommand("memfs-init", {
-    description: "Initialize the selected local-memfs agent repository without enabling the layer",
-    handler: async (_args, ctx) => {
-      try {
-        const store = createStore(state.agent);
-        const revision = await store.initialize();
-        report(ctx, `Initialized local-memfs agent '${state.agent}' at ${revision.slice(0, 8)}`);
-      } catch (error) {
-        report(ctx, (error as Error).message, "error");
+  pi.registerCommand("local-memfs-centering", {
+    description: "Synchronously reflect on recent context and maintain the active local-memfs profile",
+    handler: async (args, ctx) => {
+      if (args.trim()) {
+        report(ctx, "Usage: /local-memfs-centering", "error");
+        return;
       }
+      if (!state.enabled) {
+        report(ctx, "local-memfs is disabled; run /local-memfs-toggle on first", "warning");
+        return;
+      }
+      pi.sendUserMessage(CENTERING_PROMPT);
     },
   });
 
-  pi.registerCommand("memfs-status", {
+  pi.registerCommand("local-memfs-status", {
     description: "Show selected local-memfs agent status",
     handler: async (_args, ctx) => {
       try {
@@ -123,33 +161,4 @@ export function registerMemfsCommands(pi: ExtensionAPI, state: RuntimeState): vo
     },
   });
 
-  pi.registerCommand("memfs-commit", {
-    description: "Validate and commit manual edits in the selected local-memfs repository",
-    handler: async (args, ctx) => {
-      try {
-        const store = state.store ?? createStore(state.agent);
-        const result = await store.commitManualChanges(args.trim() || "Update local-memfs");
-        report(ctx, result.changed ? `Committed ${result.revision}` : `No manual changes; HEAD ${result.revision}`);
-      } catch (error) {
-        report(ctx, (error as Error).message, "error");
-      }
-    },
-  });
-
-  pi.registerCommand("memfs-log", {
-    description: "Show recent commits for the selected local-memfs repository",
-    handler: async (args, ctx) => {
-      try {
-        const parsedLimit = Number.parseInt(args.trim(), 10);
-        const limit = Number.isFinite(parsedLimit) ? parsedLimit : 10;
-        const history = await (state.store ?? createStore(state.agent)).history(undefined, limit);
-        report(
-          ctx,
-          history.map((item) => `${item.revision.slice(0, 8)} ${item.timestamp} ${item.message}`).join("\n") || "No commits",
-        );
-      } catch (error) {
-        report(ctx, (error as Error).message, "error");
-      }
-    },
-  });
 }
