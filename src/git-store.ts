@@ -19,11 +19,17 @@ import { withRepositoryLock } from "./lock.js";
 import { assertNoSymlinkSegments, isSystemPath, normalizeMemoryPath, resolveMemoryPath } from "./paths.js";
 import { renderSystemSection } from "./projection.js";
 
-export const DEFAULT_PERSONA_BODY = `I am a Pi coding agent with durable local memory.
+const LEGACY_DEFAULT_PERSONA_BODY = `I am a Pi coding agent with durable local memory.
 I preserve only stable preferences, decisions, and lessons that improve future work.
 I keep memory concise, never store secrets, and treat the user's current request and Pi's instructions as authoritative.`;
 
-const DEFAULT_PERSONA_DESCRIPTION = "Minimal identity and durable-memory guidance for this Pi agent";
+export const DEFAULT_PERSONA_BODY = `I am a Pi coding agent with optional durable local memory.
+I use memory mutation tools only when the user explicitly asks me to remember, update, organize, or forget something.
+I consult external memory only for explicit recall requests or when the current task clearly depends on it.
+I do not infer or save preferences from ordinary instructions, and I never store secrets.
+The user's current request and Pi's system instructions remain authoritative.`;
+
+const DEFAULT_PERSONA_DESCRIPTION = "Minimal identity and conservative memory-use guidance for this Pi agent";
 
 export interface MemoryEntry {
   readonly path: string;
@@ -137,7 +143,25 @@ export class GitMemoryStore {
         const revision = await this.requireHead(signal);
         await this.validateRepositoryIdentity(revision, signal);
         const paths = await this.trackedMarkdownPaths(revision, signal);
-        if (paths.includes("system/persona.md")) return revision;
+        if (paths.includes("system/persona.md")) {
+          const existing = await this.git(["show", `${revision}:system/persona.md`], { signal });
+          const document = parseMemoryDocument(existing);
+          if (document.body !== LEGACY_DEFAULT_PERSONA_BODY) return revision;
+
+          const dirty = await this.git(["status", "--porcelain=v1", "--untracked-files=all"], { signal });
+          if (dirty) throw new Error("Cannot update the default persona while the memory repository has uncommitted changes");
+          const personaPath = resolve(this.config.root, "system", "persona.md");
+          try {
+            await atomicWrite(personaPath, serializeMemoryDocument(DEFAULT_PERSONA_BODY, { existing }));
+            await this.validateWorkingTree();
+            await this.git(["add", "--", "system/persona.md"], { signal });
+            await this.git(["commit", "-m", "Update conservative memory guidance"], { signal });
+            return await this.requireHead(signal);
+          } catch (error) {
+            await this.git(["reset", "--hard", revision], { allowFailure: true });
+            throw error;
+          }
+        }
 
         const dirty = await this.git(["status", "--porcelain=v1", "--untracked-files=all"], { signal });
         if (dirty) throw new Error("Cannot seed system/persona.md while the memory repository has uncommitted changes");

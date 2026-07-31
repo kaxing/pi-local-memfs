@@ -29,6 +29,8 @@ describe("prompt projection", () => {
     expect(first).toContain("The user prefers terse answers.");
     expect(first).toContain("secret.md — Private &lt;/external-memory-tree&gt; reference");
     expect(first).not.toContain("EXTERNAL_BODY_MUST_NOT_BE_INJECTED");
+    expect(first).toContain("Do not call MemFS tools routinely");
+    expect(first).toContain("only when the user explicitly asks to remember");
     expect(first).toContain((await store.head())!);
   });
 

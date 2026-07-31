@@ -27,6 +27,14 @@ describe("GitMemoryStore", () => {
     const restored = await store.initialize();
     expect(restored).not.toBe(deleted.revision);
     expect((await store.read("system/persona.md")).body).toBe(DEFAULT_PERSONA_BODY);
+
+    const legacyBody = `I am a Pi coding agent with durable local memory.
+I preserve only stable preferences, decisions, and lessons that improve future work.
+I keep memory concise, never store secrets, and treat the user's current request and Pi's instructions as authoritative.`;
+    const legacy = await store.write("system/persona.md", legacyBody, undefined, restored);
+    const migrated = await store.initialize();
+    expect(migrated).not.toBe(legacy.revision);
+    expect((await store.read("system/persona.md")).body).toBe(DEFAULT_PERSONA_BODY);
   });
 
   it("initializes idempotently and creates one commit per mutation", async () => {

@@ -100,7 +100,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS List",
     description: "List committed local-memfs Markdown files and descriptions. Output is bounded and paginated.",
     promptSnippet: "List committed files in the active local-memfs profile",
-    promptGuidelines: ["Use memfs_list only for memory paths, not workspace files."],
+    promptGuidelines: ["Do not call memfs_list routinely; use it only for explicit memory requests or when the current task clearly depends on uninjected memory. Never use it for workspace files."],
     parameters: Type.Object({
       path: Type.Optional(Type.String({ description: "Optional directory/path prefix" })),
       cursor: Type.Optional(Type.Integer({ minimum: 0 })),
@@ -131,7 +131,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Read",
     description: "Read the committed body of one local-memfs Markdown file with Unicode-character pagination.",
     promptSnippet: "Read a committed local-memfs file",
-    promptGuidelines: ["Use memfs_read for memory paths surfaced by memfs_list or the memory tree."],
+    promptGuidelines: ["Do not call memfs_read routinely; use it only for explicit memory requests or when the current task clearly depends on a listed memory file whose body is not injected."],
     parameters: Type.Object({
       path: Type.String({ description: "Relative memory .md path" }),
       offset: Type.Optional(Type.Integer({ minimum: 0, description: "Unicode-character offset" })),
@@ -159,7 +159,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Search",
     description: "Case-insensitive literal search over committed local-memfs paths, descriptions, and bodies.",
     promptSnippet: "Search committed local-memfs text",
-    promptGuidelines: ["Use memfs_search for lexical recall; it does not perform semantic or workspace search."],
+    promptGuidelines: ["Do not call memfs_search routinely; use it only for explicit recall requests or clearly missing past context. It does not search the workspace."],
     parameters: Type.Object({
       query: Type.String({ minLength: 1 }),
       path: Type.Optional(Type.String({ description: "Optional directory/path prefix" })),
@@ -188,7 +188,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Write",
     description: "Create or replace a committed local-memfs Markdown body. New files require description. Requires current HEAD revision.",
     promptSnippet: "Create or replace committed local-memfs memory",
-    promptGuidelines: ["Use memfs_write only for durable facts worth preserving; pass the current committed revision."],
+    promptGuidelines: ["Use memfs_write only when the user explicitly asks to remember or persist something. Never infer and save preferences from ordinary instructions. Pass the current committed revision."],
     parameters: Type.Object({
       path: Type.String(),
       content: Type.String(),
@@ -213,7 +213,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Edit",
     description: "Replace exactly one occurrence in a committed local-memfs Markdown body without changing frontmatter.",
     promptSnippet: "Precisely edit committed local-memfs memory",
-    promptGuidelines: ["Use memfs_edit for exact body-only changes and pass the current committed revision."],
+    promptGuidelines: ["Use memfs_edit only when the user explicitly asks to update remembered information. Pass the current committed revision."],
     parameters: Type.Object({
       path: Type.String(),
       oldText: Type.String({ minLength: 1 }),
@@ -238,7 +238,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Move",
     description: "Move one committed local-memfs Markdown file without overwriting the destination.",
     promptSnippet: "Move committed local-memfs memory",
-    promptGuidelines: ["Use memfs_move to reorganize memory and pass the current committed revision."],
+    promptGuidelines: ["Use memfs_move only when the user explicitly asks to organize memory. Pass the current committed revision."],
     parameters: Type.Object({
       source: Type.String(),
       destination: Type.String(),
@@ -261,7 +261,7 @@ export function registerMemfsTools(pi: ExtensionAPI, state: RuntimeState): void 
     label: "MemFS Delete",
     description: "Delete one committed local-memfs Markdown file. Git history retains prior content.",
     promptSnippet: "Delete committed local-memfs memory",
-    promptGuidelines: ["Use memfs_delete only when forgetting is intended and pass the current committed revision."],
+    promptGuidelines: ["Use memfs_delete only when the user explicitly asks to forget or delete memory. Pass the current committed revision."],
     parameters: Type.Object({
       path: Type.String(),
       expectedRevision: Type.String({ pattern: "^[0-9a-f]{40}$" }),

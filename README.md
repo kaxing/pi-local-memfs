@@ -28,7 +28,7 @@ Agent profiles and extension state are stored locally:
 ~/.pi/agent/local-memfs/state.json
 ```
 
-Each profile includes a minimal `system/persona.md`. Memory changes are committed to Git and persist across Pi sessions.
+Each profile includes a minimal `system/persona.md`. Memory changes are explicit: the agent should write or modify memory only when asked to remember, update, organize, or forget something. Changes are committed to Git and persist across Pi sessions.
 
 When enabled, the agent can call:
 
